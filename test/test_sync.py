@@ -39,59 +39,39 @@ def test_arg_parsing():
     assert args.log_file_path == "sync.log"
 
 # Test 3: Basic folder synchronization testing
-def test_sync_basic_operations(tmpdir, monkeypatch):
-    """Test file creation and deletion synchronization"""
+def test_sync_basic_operations(tmpdir):
+    """Test file creation/deletion with controlled sync cycles"""
     # Setup test folders
     source = tmpdir.mkdir("source")
     replica = tmpdir.mkdir("replica")
     log_file = tmpdir.join("sync.log")
+    logger = setup_logger(str(log_file))
 
-    # Create test file
+    # Test 1
     test_file = source.join("test.txt")
     test_file.write("Hello World")
-
-    # Mock time.sleep
-    def mock_sleep(seconds):
-        raise KeyboardInterrupt  
     
-    monkeypatch.setattr(time, "sleep", mock_sleep)
-
-    # Run sync
-    logger = setup_logger(str(log_file))
-    try:
-        sync_folders(str(source), str(replica), logger, 1)
-    except KeyboardInterrupt:
-        pass 
-
-    # Verifies file was copied
+    # Runs one cycle
+    sync_folders(str(source), str(replica), logger, 1, max_cycles=1)
     assert os.path.exists(os.path.join(replica, "test.txt"))
 
-    # Deletes source file
+    # Test 2
     test_file.remove()
-    try:
-        sync_folders(str(source), str(replica), logger, 1)
-    except KeyboardInterrupt:
-        pass
 
-    # Verifies file was removed
+    sync_folders(str(source), str(replica), logger, 1, max_cycles=1)
     assert not os.path.exists(os.path.join(replica, "test.txt"))
 
 # Test 4: Nested directory creation
-def test_nested_directory(tmpdir, monkeypatch):
-    """Test nested directory structure synchronization"""
+def test_nested_directory(tmpdir):
+    """Test directory structure with controlled sync"""
     source = tmpdir.mkdir("source")
     replica = tmpdir.mkdir("replica")
     log_file = tmpdir.join("sync.log")
+    logger = setup_logger(str(log_file))
 
     nested_dir = source.mkdir("subdir")
     test_file = nested_dir.join("file.txt")
     test_file.write("Content")
 
-    # Mock time.sleep
-    monkeypatch.setattr(time, "sleep", lambda x: None)
-
-    # Runs a single sync cycle
-    logger = setup_logger(str(log_file))
-    sync_folders(str(source), str(replica), logger, interval=0.1)
-
+    sync_folders(str(source), str(replica), logger, 0.1, max_cycles=1)
     assert os.path.exists(os.path.join(replica, "subdir/file.txt"))

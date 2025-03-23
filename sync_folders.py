@@ -1,5 +1,7 @@
 # Imports for later
-
+import os
+import shutil
+from datetime import datetime
 import argparse
 import logging
 import time
@@ -30,88 +32,91 @@ def setup_logger(log_file_path):
     logger.addHandler(console_handler)
     return logger
 
-def sync_folders(source, replica, logger, interval):
-    """Main synchronization loop with progress feedback and clear logging."""
-    import os
-    import shutil
-    from datetime import datetime
-    
-    # Create replica root if it doesn't exist
+def sync_folders(source, replica, logger, interval, max_cycles=None):
+    """Main synchronization loop with progress feedback and test controls."""
+    # Initializes cycle counter
+    cycle_count = 0
+
+    # Creates replica root if missing
     if not os.path.exists(replica):
         os.makedirs(replica)
-        logger.info(f"Created replica root: {replica}")
+        logger.info(f"📂 Created replica root: {replica}")
 
     while True:
         try:
-            # Phase 1
-            logger.info("🔄 Scanning for changes...")
+            # Tests cycle control
+            if max_cycles is not None and cycle_count >= max_cycles:
+                logger.info("Test cycle limit reached")
+                break
+
+            logger.info("🔍 Scanning source folder...")
             sync_start = datetime.now()
             
+            # Phase 1
             for root, dirs, files in os.walk(source):
-                # Creates equivalent directory structure in replica
                 relative_path = os.path.relpath(root, source)
                 replica_dir = os.path.join(replica, relative_path)
-                
+
+                # Creates matching directory structure
                 if not os.path.exists(replica_dir):
                     os.makedirs(replica_dir)
-                    logger.info(f"📁 Created directory: {replica_dir}")
+                    logger.info(f"📂 Created directory: {replica_dir}")
 
-                # File synchronization logic
                 for file in files:
                     src_path = os.path.join(root, file)
                     rep_path = os.path.join(replica_dir, file)
-                
-                    copy_needed = False
+                    
+                    copy_reason = None
                     if not os.path.exists(rep_path):
-                        copy_needed = True
-                        reason = "new file"
+                        copy_reason = "new file"
                     else:
-                        # Comparation of size and modification time
                         src_stat = os.stat(src_path)
                         rep_stat = os.stat(rep_path)
                         
                         if src_stat.st_size != rep_stat.st_size:
-                            copy_needed = True
-                            reason = "size difference"
+                            copy_reason = "size mismatch"
                         elif src_stat.st_mtime > rep_stat.st_mtime:
-                            copy_needed = True
-                            reason = "modification time"
+                            copy_reason = "updated content"
 
-                    # copy if needed
-                    if copy_needed:
+                    if copy_reason:
                         shutil.copy2(src_path, rep_path)
-                        logger.info(f"📄 Copied {reason}: {file}")
+                        logger.info(f"Copied ({copy_reason}): {file}")
 
             # Phase 2
-            logger.info("🧹 Cleaning up orphaned files...")
+            logger.info("Cleaning replica folder...")
             for root, dirs, files in os.walk(replica):
                 relative_path = os.path.relpath(root, replica)
                 source_dir = os.path.join(source, relative_path)
 
-                # Removes files not present in source
                 for file in files:
                     rep_path = os.path.join(root, file)
                     src_path = os.path.join(source_dir, file)
                     
                     if not os.path.exists(src_path):
                         os.remove(rep_path)
-                        logger.info(f"🗑️ Removed orphaned file: {file}")
+                        logger.info(f"Removed orphaned file: {file}")
 
-                # Removes empty directories
                 if not os.path.exists(source_dir):
                     shutil.rmtree(root)
-                    logger.info(f"📁 Removed orphaned directory: {relative_path}")
+                    logger.info(f"Removed empty directory: {relative_path}")
 
-            # Calculates sync duration
             sync_duration = datetime.now() - sync_start
             logger.info(f"✅ Sync completed in {sync_duration.total_seconds():.2f}s")
-            logger.info(f"⏳ Next sync in {interval} seconds...\n")
+            
+            if max_cycles is None:
+                logger.info(f"Next sync in {interval}s")
+            else:
+                logger.info(f"Test cycles completed: {cycle_count + 1}/{max_cycles or '∞'}")
+
+            cycle_count += 1
 
         except Exception as e:
-            logger.error(f"🚨 Synchronization error: {str(e)}")
+            logger.error(f"Critical error: {str(e)}")
             raise
 
         time.sleep(interval)
+
+    logger.info("Synchronization stopped")
 
 def parse_args(args=None):
     """Argument parsing logic."""
