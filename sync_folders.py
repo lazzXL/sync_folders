@@ -19,6 +19,7 @@ def file_hash(filepath):
 
 
 def setup_logger(log_file_path):
+    "Sets up the logging"
     logger = logging.getLogger("FolderSync")
     logger.setLevel(logging.INFO)
 

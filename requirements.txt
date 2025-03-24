@@ -1,0 +1,6 @@
+# Core requirements (empty for now, using standard libraries)
+# Python 3.6+ required
+
+# Testing requirements
+pytest >= 7.0
+pytest-mock >= 3.0

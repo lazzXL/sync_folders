@@ -1,11 +1,10 @@
 import os
 import logging
 import sys
-import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sync_folders import setup_logger, sync_folders, parse_args, main
+from sync_folders import setup_logger, sync_folders, parse_args
 
 # Test 1: Logger configuration
 def test_setup_logger(tmpdir):
